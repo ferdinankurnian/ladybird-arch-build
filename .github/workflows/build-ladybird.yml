@@ -47,8 +47,17 @@ jobs:
       - name: Build ladybird-git and all AUR deps (as builder)
         run: |
           set -euxo pipefail
-          sudo -u builder bash -c '
+          # SUDO_USER=builder is set explicitly: yay v13 de-elevates its git/makepkg
+          # child processes when it runs as root (os.Geteuid()==0) by looking up
+          # $SUDO_USER, and falls back to `systemd-run` when it does not resolve
+          # to a real user. In a systemd-less container that fallback fails with
+          # "error fetching <pkg>: System has not been booted with systemd as
+          # init system (PID 1)". With SUDO_USER pointing at a real user, the
+          # credential branch runs everything as `builder` and systemd is never
+          # involved.
+          sudo -u builder env SUDO_USER=builder bash -c '
             set -euxo pipefail
+            echo "euid=$(id -u) user=$(id -un) SUDO_USER=${SUDO_USER:-unset}"
             # collect every built package in one place
             export PKGDEST="$HOME/pkgout"
             mkdir -p "$PKGDEST"
