@@ -58,6 +58,19 @@ jobs:
           sudo -u builder env SUDO_USER=builder bash -c '
             set -euxo pipefail
             echo "euid=$(id -u) user=$(id -un) SUDO_USER=${SUDO_USER:-unset}"
+            # --- diagnostics for the yay-as-root mystery ---
+            echo "PATH=$PATH"
+            command -v yay
+            ls -l "$(command -v yay)"
+            stat -c 'mode=%a owner=%U:%G' "$(command -v yay)"
+            if [ -n "$(getcap "$(command -v yay)" 2>/dev/null)" ]; then
+              echo "YAY HAS FILE CAPABILITIES: $(getcap "$(command -v yay)")"
+            else
+              echo "yay: no file capabilities"
+            fi
+            getent passwd builder || echo "NO /etc/passwd ENTRY FOR builder"
+            yay --version
+            # --- end diagnostics ---
             # collect every built package in one place
             export PKGDEST="$HOME/pkgout"
             mkdir -p "$PKGDEST"
