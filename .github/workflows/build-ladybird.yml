@@ -61,6 +61,23 @@ jobs:
             else
               echo "/mnt not available, building under \$HOME"
             fi
+            # libpng-apng (AUR) is a drop-in replacement for repo libpng with
+            # APNG patches (provides: libpng=..., conflicts: libpng; extra/libpng
+            # has no APNG, which is why ladybird-git needs the AUR one).
+            # Install it FIRST: otherwise yay later installs skia-static (which
+            # depends on libpng) together with libpng-apng in one pacman -U
+            # transaction, pacman pulls repo libpng into it, and the whole
+            # transaction aborts on the conflict ("Remove libpng? [y/N]" ->
+            # --noconfirm answers N). With libpng-apng preinstalled, its
+            # provides satisfy skia-static's dependency and repo libpng is
+            # never pulled.
+            if pacman -Qi libpng >/dev/null 2>&1; then
+              sudo pacman -Rdd --noconfirm libpng
+            fi
+            yay -S --noconfirm --needed \
+              --answerclean None --answerdiff None --answeredit None \
+              libpng-apng
+
             yay -S --noconfirm --needed \
               --answerclean None --answerdiff None --answeredit None \
               ladybird-git

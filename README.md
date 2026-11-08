@@ -20,6 +20,9 @@ langsung via `sudo pacman -U`.
    cd ladybird-arch-pkgs
    sudo pacman -U ./*.pkg.tar.zst
    ```
+   Kalau muncul prompt `libpng-apng and libpng are in conflict. Remove libpng? [y/N]`,
+   jawab **y** — aman, karena `libpng-apng` itu paket libpng yang sama
+   (drop-in replacement) plus patch APNG, yang memang dibutuhkan ladybird.
 
 ## Catatan
 
