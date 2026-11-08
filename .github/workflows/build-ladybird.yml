@@ -47,30 +47,20 @@ jobs:
       - name: Build ladybird-git and all AUR deps (as builder)
         run: |
           set -euxo pipefail
-          # SUDO_USER=builder is set explicitly: yay v13 de-elevates its git/makepkg
-          # child processes when it runs as root (os.Geteuid()==0) by looking up
-          # $SUDO_USER, and falls back to `systemd-run` when it does not resolve
-          # to a real user. In a systemd-less container that fallback fails with
-          # "error fetching <pkg>: System has not been booted with systemd as
-          # init system (PID 1)". With SUDO_USER pointing at a real user, the
-          # credential branch runs everything as `builder` and systemd is never
-          # involved.
+          # NOTE: this whole script is one single-quoted bash -c string. It
+          # must not contain any single-quote/apostrophe characters, or the
+          # string terminates early and the remaining lines leak into the
+          # root step shell (that is what broke the previous runs: yay then
+          # ran as root and its de-elevation fell back to systemd-run, which
+          # does not exist in this container).
+          #
+          # SUDO_USER=builder is kept as a safety net: yay de-elevates its
+          # child processes when it runs as root by looking up $SUDO_USER and
+          # falls back to systemd-run when it does not resolve; pointing it
+          # at a real user keeps the credential branch systemd-free.
           sudo -u builder env SUDO_USER=builder bash -c '
             set -euxo pipefail
             echo "euid=$(id -u) user=$(id -un) SUDO_USER=${SUDO_USER:-unset}"
-            # --- diagnostics for the yay-as-root mystery ---
-            echo "PATH=$PATH"
-            command -v yay
-            ls -l "$(command -v yay)"
-            stat -c 'mode=%a owner=%U:%G' "$(command -v yay)"
-            if [ -n "$(getcap "$(command -v yay)" 2>/dev/null)" ]; then
-              echo "YAY HAS FILE CAPABILITIES: $(getcap "$(command -v yay)")"
-            else
-              echo "yay: no file capabilities"
-            fi
-            getent passwd builder || echo "NO /etc/passwd ENTRY FOR builder"
-            yay --version
-            # --- end diagnostics ---
             # collect every built package in one place
             export PKGDEST="$HOME/pkgout"
             mkdir -p "$PKGDEST"
@@ -84,15 +74,15 @@ jobs:
               echo "/mnt not available, building under \$HOME"
             fi
             # libpng-apng (AUR) is a drop-in replacement for repo libpng with
-            # APNG patches (provides: libpng=..., conflicts: libpng; extra/libpng
-            # has no APNG, which is why ladybird-git needs the AUR one).
+            # APNG patches (provides: libpng=..., conflicts: libpng; the extra
+            # repo libpng has no APNG, which is why ladybird-git needs it).
             # Install it FIRST: otherwise yay later installs skia-static (which
             # depends on libpng) together with libpng-apng in one pacman -U
             # transaction, pacman pulls repo libpng into it, and the whole
-            # transaction aborts on the conflict ("Remove libpng? [y/N]" ->
-            # --noconfirm answers N). With libpng-apng preinstalled, its
-            # provides satisfy skia-static's dependency and repo libpng is
-            # never pulled.
+            # transaction aborts on the conflict ("Remove libpng? [y/N]" with
+            # --noconfirm answering N). With libpng-apng preinstalled, its
+            # provides satisfy the libpng dependency of skia-static, so repo
+            # libpng is never pulled.
             if pacman -Qi libpng >/dev/null 2>&1; then
               sudo pacman -Rdd --noconfirm libpng
             fi
